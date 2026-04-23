@@ -1,0 +1,40 @@
+# backend/app/notifications/telegram_provider.py
+import httpx
+import os
+from .base import NotificationProvider
+
+class TelegramProvider(NotificationProvider):
+    def __init__(self):
+        self.token = os.getenv("TELEGRAM_BOT_TOKEN")
+        self.base_url = f"https://api.telegram.org/bot{self.token}"
+        self.token = os.getenv("TELEGRAM_BOT_TOKEN")
+        # UPDATED DEBUG LOG:
+        print(f"🔑 DEBUG: First 10 chars of token: '{self.token[:10] if self.token else 'NONE'}'")
+        self.base_url = f"https://api.telegram.org/bot{self.token}"
+
+    async def send_revision(self, recipient_id: str, topic: str, content: dict):
+        message = (
+                f"🧠 *MemoryStack Revision: {topic}*\n\n"
+                f"📍 *Layer 1 (The Gist):*\n{content['l1']}\n\n"
+                f"⚙️ *Layer 2 (The Pattern):*\n{content['l2']}\n\n"
+                f"❓ *Challenges:*\n" +
+                "\n".join([f"• {q}" for q in content['l3']])
+        )
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": recipient_id,
+                    "text": message,
+                    "parse_mode": "Markdown"
+                }
+            )
+
+            # DEBUG LOGS: Check your terminal after running the test!
+            print(f"📡 Telegram Request to ID: {recipient_id}")
+            print(f"📊 Status Code: {response.status_code}")
+            if response.status_code != 200:
+                print(f"❌ Telegram Error Details: {response.text}")
+
+            return response.status_code == 200

@@ -1,0 +1,7 @@
+fastapi[standard]
+sqlalchemy
+psycopg2-binary
+pydantic-settings
+openai
+fsrs==3.1.0
+python-dotenv
