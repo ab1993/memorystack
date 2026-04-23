@@ -34,6 +34,8 @@
 ---
 
 ### 🏛️ High-Level System Architecture
+![System Architecture](images/MemoryStackArchitecture.png)
+
 The product is divided into five distinct layers, each decoupled to allow for independent scaling and modification.
 
 1. The Interaction Layer (Next.js 14)
