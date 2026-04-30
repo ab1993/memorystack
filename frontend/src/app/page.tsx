@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Topic, SprintPlan } from '@/types';
 import { useRouter } from 'next/navigation';
-import {Send} from "lucide-react";
+import {Send, CheckCircle, ExternalLink, BrainCircuit, Loader2} from "lucide-react";
 
 export default function Dashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -13,6 +13,10 @@ export default function Dashboard() {
     const [newTopicName, setNewTopicName] = useState("");
     const [isLearning, setIsLearning] = useState(false);
     const router = useRouter();
+    const [isLinked, setIsLinked] = useState(false);
+    const [isPolling, setIsPolling] = useState(false);
+    const TELEGRAM_BOT_NAME = "MemoryStackBot";
+    const userId = 929325646; // This would come from your Auth context later
 
     // Load initial topics from DB
     useEffect(() => {
@@ -54,8 +58,30 @@ export default function Dashboard() {
         }
     };
 
-    const TELEGRAM_BOT_NAME = "MemoryStack_Bot";
-    const userId = 1; // This would come from your Auth context later
+    const checkStatus = async () => {
+        try {
+            const res = await fetch('http://localhost:8000/user/1/status');
+            const data = await res.json();
+            if (data.telegram_chat_id) {
+                setIsLinked(true);
+                setIsPolling(false);
+            }
+        } catch (e) { console.error("Handshake pending..."); }
+    };
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isPolling && !isLinked) {
+            interval = setInterval(checkStatus, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isPolling, isLinked]);
+
+    const handleConnect = () => {
+        setIsPolling(true);
+        // Replace with your actual bot name from @BotFather
+        window.open(`https://t.me/${TELEGRAM_BOT_NAME}?start=${userId}`, '_blank');
+    };
 
     const connectTelegram = () => {
         // Deep link with the internal user ID as a parameter
@@ -63,6 +89,39 @@ export default function Dashboard() {
     };
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12">
+
+            {/* --- 2. THE HEADER (Put the Link Here) --- */}
+            <header className="sticky top-0 z-50 flex justify-between items-center px-8 py-4 bg-black/40 backdrop-blur-xl border-b border-white/5">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                        <BrainCircuit className="text-blue-400" size={24} />
+                    </div>
+                    <div>
+                        <h1 className="font-bold text-lg tracking-tight">MemoryStack</h1>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest">v1.0 Beta</p>
+                    </div>
+                </div>
+
+                {/* --- TELEGRAM STATUS AREA --- */}
+                <div className="flex items-center gap-4">
+                    {isLinked ? (
+                        <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                            <CheckCircle size={14} />
+                            Bot Active
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleConnect}
+                            className="group relative flex items-center gap-2 px-5 py-2 bg-[#229ED9] hover:bg-[#229ED9]/90 text-white text-xs font-bold rounded-full transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                        >
+                            {isPolling ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                            {isPolling ? "Awaiting Handshake..." : "Sync Telegram"}
+                        </button>
+                    )}
+                </div>
+            </header>
+
+
             <div className="max-w-5xl mx-auto">
                 <header className="mb-12">
                     <h1 className="text-5xl font-extrabold tracking-tight mb-3 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
@@ -127,7 +186,6 @@ export default function Dashboard() {
                                 <span className="font-bold text-blue-400">{selected.length}</span>
                             </div>
                         </div>
-
                         <button
                             onClick={startSprint}
                             className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition-all uppercase tracking-tight"
@@ -136,12 +194,6 @@ export default function Dashboard() {
                         </button>
                     </div>
                 </section>
-                <button
-                    onClick={connectTelegram}
-                    className="flex items-center gap-2 px-4 py-2 bg-sky-500/20 text-sky-400 rounded-lg border border-sky-500/30 hover:bg-sky-500/30 transition-all"
-                >
-                    <Send size={18} /> Connect Telegram
-                </button>
             </div>
         </div>
     );

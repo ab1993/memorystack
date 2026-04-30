@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { SprintPlan, Topic } from '@/types';
-import { CheckCircle, ArrowRight, BrainCircuit } from 'lucide-react';
+import {CheckCircle, ArrowRight, BrainCircuit, Sparkles} from 'lucide-react';
 
 export default function SprintPage() {
     const [plan, setPlan] = useState<SprintPlan | null>(null);
@@ -46,6 +46,24 @@ export default function SprintPage() {
         }
     };
 
+    const handleGenerate = async () => {
+        if (!topic) return;
+
+        try {
+            const response = await fetch(`http://localhost:8000/topics/generate?topic_name=${topic}`, {
+                method: 'POST',
+            });
+
+            if (response.ok) {
+                console.log("Topic generated and pushed!");
+                setTopic(""); // Clear the input
+                // Optionally: Refresh your topic list here
+            }
+        } catch (error) {
+            console.error("Generation failed", error);
+        }
+    };
+
     if (isDone) {
         return (
             <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-6">
@@ -72,6 +90,13 @@ export default function SprintPage() {
                         Topic {currentIndex + 1} of {sprintTopics.length}
                     </div>
                 </div>
+
+                <button
+                    onClick={handleGenerate}
+                    className="absolute right-2 top-2 p-3 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors"
+                >
+                    <Sparkles size={20} />
+                </button>
 
                 {/* The Card */}
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 shadow-2xl">

@@ -8,8 +8,6 @@ class TelegramProvider(NotificationProvider):
         self.token = os.getenv("TELEGRAM_BOT_TOKEN")
         self.base_url = f"https://api.telegram.org/bot{self.token}"
         self.token = os.getenv("TELEGRAM_BOT_TOKEN")
-        # UPDATED DEBUG LOG:
-        print(f"🔑 DEBUG: First 10 chars of token: '{self.token[:10] if self.token else 'NONE'}'")
         self.base_url = f"https://api.telegram.org/bot{self.token}"
 
     async def send_revision(self, recipient_id: str, topic: str, content: dict):

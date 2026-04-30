@@ -20,7 +20,7 @@ class UserRevision(Base):
     __tablename__ = "user_revisions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, index=True) # For now, can be a simple string/email
+    user_id = Column(Integer, ForeignKey("users.id"), index=True) # For now, can be a simple string/email
     note_id = Column(Integer, ForeignKey("atomic_notes.id"))
 
     # FSRS Memory Fields (The AI Brain for scheduling)
@@ -30,8 +30,8 @@ class UserRevision(Base):
     scheduled_days = Column(Integer, default=0)
     reps = Column(Integer, default=0)
     state = Column(Integer, default=0) # 0=New, 1=Learning, 2=Review
-
     last_review = Column(DateTime, default=datetime.utcnow)
+    next_review = Column(DateTime, default=datetime.utcnow)
 
 
 class User(Base):

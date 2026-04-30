@@ -12,8 +12,24 @@ from dotenv import load_dotenv
 import os
 load_dotenv() # This must be called BEFORE you initialize the NotificationManager
 from .notifications.manager import NotificationManager
+from sqlalchemy.orm import Session
+from . import models, database, fsrs # Ensure these are imported
+# 👇 IMPORT OUR NEW SCHEDULER
+from .scheduler import start_scheduler
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="MemoryStack API")
+# 👇 DEFINE WHAT HAPPENS ON STARTUP
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This runs when the server starts
+    start_scheduler()
+    yield
+    # Anything here runs when the server shuts down
+
+app = FastAPI(title="MemoryStack API",lifespan=lifespan)
+from .notifications import discovery
+
+app.include_router(discovery.router)
 
 # 2. Define the "Trusted" origins
 origins = [
@@ -92,6 +108,48 @@ def generate_new_topic(topic_name: str, db: Session = Depends(get_db)):
         return new_note
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/topics/generate")
+async def generate_topic(topic_name: str, db: Session = Depends(database.get_db)):
+    # 1. Look up our linked user (Hardcoded to 1 for Beta)
+    user = db.query(models.User).filter(models.User.id == 1).first()
+    if not user or not user.telegram_chat_id:
+        raise HTTPException(status_code=400, detail="Telegram not linked!")
+
+    print(f"🤖 Generating content for: {topic_name}")
+
+    # 2. MOCK AI GENERATION (Replace this with your actual LLM call later)
+    # This ensures the pipe works even if your OpenAI API isn't ready
+    ai_note = {
+        "gist": f"{topic_name} is a vital pattern in system design used for scaling.",
+        "pattern": "Implementation involves a distributed hash table and nodes on a circular ring.",
+        "challenges": ["How do you handle node hotspots?", "What happens during cascading failures?"]
+    }
+
+    # 3. Save to Database
+    new_note = models.AtomicNote(
+        user_id=1,
+        topic=topic_name,
+        layer_1_gist=ai_note["gist"],
+        layer_2_pattern=ai_note["pattern"],
+        layer_3_questions=str(ai_note["challenges"]), # Store as string/JSON
+        next_revision=datetime.utcnow(),
+        stability=0.1
+    )
+    db.add(new_note)
+    db.commit()
+    db.refresh(new_note)
+
+    # 4. THE PUSH: Send to your phone immediately
+    print(f"📤 Pushing {topic_name} to Telegram ID: {user.telegram_chat_id}")
+    await manager.broadcast_revision(
+        user.telegram_chat_id,
+        topic_name,
+        new_note # This passes the object to your Telegram strategy
+    )
+
+    return {"status": "Success", "topic": topic_name}
 
 
 @app.post("/review/{note_id}")
@@ -178,3 +236,16 @@ async def test_notification():
         return {"status": "success", "message": "Check your Telegram!"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+@app.get("/user/{user_id}/status")
+def get_user_status(user_id: int, db: Session = Depends(database.get_db)):
+    # Look up the user in the database
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    if not user:
+        return {"telegram_chat_id": None, "error": "User not found"}
+
+    return {
+        "user_id": user.id,
+        "telegram_chat_id": user.telegram_chat_id # This will be null until they hit Start
+    }
