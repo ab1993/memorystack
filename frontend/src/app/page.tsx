@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Topic, SprintPlan } from '@/types';
 import { useRouter } from 'next/navigation';
-import {Send, CheckCircle, ExternalLink, BrainCircuit, Loader2} from "lucide-react";
+import { Send, CheckCircle, ExternalLink, BrainCircuit, Loader2, LogOut, User } from "lucide-react";
 
 export default function Dashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -13,15 +13,65 @@ export default function Dashboard() {
     const [newTopicName, setNewTopicName] = useState("");
     const [isLearning, setIsLearning] = useState(false);
     const router = useRouter();
+
+    // User State
+    const [userEmail, setUserEmail] = useState<string>("");
+    const [dbUserId, setDbUserId] = useState<string | null>(null);
     const [isLinked, setIsLinked] = useState(false);
     const [isPolling, setIsPolling] = useState(false);
-    const TELEGRAM_BOT_NAME = "MemoryStackBot";
-    const userId = 929325646; // This would come from your Auth context later
 
-    // Load initial topics from DB
+    const TELEGRAM_BOT_NAME = "MemoryStackBot";
+
+    const loadTopics = async () => {
+        try {
+            const data = await api.getTopics();
+            setTopics(data);
+        } catch (error) {
+            console.error("Failed to load topics", error);
+            router.push("/login");
+        }
+    };
+
+    // 👇 FIXED: Securely fetch the user's email, ID, and Telegram status via your API
+    const loadUserStatus = async () => {
+        try {
+            const data = await api.getUserStatus();
+            if (data) {
+                if (data.email) setUserEmail(data.email);
+                if (data.user_id) setDbUserId(data.user_id);
+                if (data.telegram_chat_id) {
+                    setIsLinked(true);
+                    setIsPolling(false);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch user status", error);
+        }
+    };
+
     useEffect(() => {
-        api.getTopics().then(setTopics).catch(console.error);
-    }, []);
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+            router.push("/login");
+        } else {
+            loadTopics();
+            loadUserStatus(); // Load the email and status immediately
+        }
+    }, [router]);
+
+    // 👇 FIXED: The polling now securely checks your dynamic token, not a hardcoded URL
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isPolling && !isLinked) {
+            interval = setInterval(loadUserStatus, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isPolling, isLinked]);
+
+    const handleLogout = () => {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+    };
 
     const handleTeachMe = async () => {
         if (!newTopicName) return;
@@ -50,7 +100,6 @@ export default function Dashboard() {
         }
         try {
             const plan = await api.generateSprint(interviewDate, selected);
-            // For now, we'll store the plan in localStorage to pass it to the next page
             localStorage.setItem('currentSprint', JSON.stringify(plan));
             router.push('/sprint');
         } catch (err) {
@@ -58,39 +107,19 @@ export default function Dashboard() {
         }
     };
 
-    const checkStatus = async () => {
-        try {
-            const res = await fetch('http://localhost:8000/user/1/status');
-            const data = await res.json();
-            if (data.telegram_chat_id) {
-                setIsLinked(true);
-                setIsPolling(false);
-            }
-        } catch (e) { console.error("Handshake pending..."); }
-    };
-
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (isPolling && !isLinked) {
-            interval = setInterval(checkStatus, 3000);
-        }
-        return () => clearInterval(interval);
-    }, [isPolling, isLinked]);
-
+    // 👇 FIXED: Uses the dynamic dbUserId we fetched from the secure endpoint
     const handleConnect = () => {
         setIsPolling(true);
-        // Replace with your actual bot name from @BotFather
-        window.open(`https://t.me/${TELEGRAM_BOT_NAME}?start=${userId}`, '_blank');
+        if (dbUserId) {
+            window.open(`https://t.me/${TELEGRAM_BOT_NAME}?start=${dbUserId}`, '_blank');
+        } else {
+            alert("Waiting for user ID to load. Try again in a second.");
+        }
     };
 
-    const connectTelegram = () => {
-        // Deep link with the internal user ID as a parameter
-        window.open(`https://t.me/${TELEGRAM_BOT_NAME}?start=${userId}`, '_blank');
-    };
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12">
+        <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 p-6 md:p-12">
 
-            {/* --- 2. THE HEADER (Put the Link Here) --- */}
             <header className="sticky top-0 z-50 flex justify-between items-center px-8 py-4 bg-black/40 backdrop-blur-xl border-b border-white/5">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-500/20 rounded-lg">
@@ -102,8 +131,15 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* --- TELEGRAM STATUS AREA --- */}
                 <div className="flex items-center gap-4">
+                    {/* --- NEW EMAIL BADGE --- */}
+                    {userEmail && (
+                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-full text-xs text-slate-300 font-medium">
+                            <User size={12} className="text-slate-400" />
+                            {userEmail}
+                        </div>
+                    )}
+
                     {isLinked ? (
                         <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                             <CheckCircle size={14} />
@@ -118,11 +154,18 @@ export default function Dashboard() {
                             {isPolling ? "Awaiting Handshake..." : "Sync Telegram"}
                         </button>
                     )}
+
+                    <button
+                        onClick={handleLogout}
+                        className="group flex items-center gap-2 px-4 py-2 text-red-400 hover:text-white border border-red-500/30 hover:bg-red-500/80 rounded-full text-xs font-bold transition-all active:scale-95"
+                    >
+                        <LogOut size={14} />
+                        Logout
+                    </button>
                 </div>
             </header>
 
-
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-5xl w-full mx-auto mt-8 flex-1">
                 <header className="mb-12">
                     <h1 className="text-5xl font-extrabold tracking-tight mb-3 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
                         MemoryStack
@@ -131,7 +174,6 @@ export default function Dashboard() {
                 </header>
 
                 <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column: Topic Selection */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="flex gap-2">
                             <input
@@ -168,7 +210,6 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Right Column: Sprint Settings */}
                     <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl h-fit sticky top-8">
                         <h2 className="text-2xl font-bold mb-6">Sprint Settings</h2>
 
@@ -195,6 +236,10 @@ export default function Dashboard() {
                     </div>
                 </section>
             </div>
+
+            <footer className="mt-16 pt-6 border-t border-white/10 text-center text-sm text-slate-500 w-full max-w-5xl mx-auto">
+                &copy; {new Date().getFullYear()} MemoryStack. All rights reserved.
+            </footer>
         </div>
     );
 }

@@ -2,6 +2,14 @@
 import httpx
 import os
 from .base import NotificationProvider
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [MemoryStack] - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 class TelegramProvider(NotificationProvider):
     def __init__(self):
@@ -30,9 +38,9 @@ class TelegramProvider(NotificationProvider):
             )
 
             # DEBUG LOGS: Check your terminal after running the test!
-            print(f"📡 Telegram Request to ID: {recipient_id}")
-            print(f"📊 Status Code: {response.status_code}")
+            logger.info(f"📡 Telegram Request to ID: {recipient_id}")
+            logger.info(f"📊 Status Code: {response.status_code}")
             if response.status_code != 200:
-                print(f"❌ Telegram Error Details: {response.text}")
+                logger.error(f"❌ Telegram Error Details: {response.text}")
 
             return response.status_code == 200

@@ -1,11 +1,12 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Float
 from .database import Base
 from datetime import datetime
+import uuid
 
 class AtomicNote(Base):
     __tablename__ = "atomic_notes"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     topic = Column(String, index=True)  # e.g., "Sliding Window"
     category = Column(String)           # e.g., "DS", "System Design"
 
@@ -19,9 +20,9 @@ class AtomicNote(Base):
 class UserRevision(Base):
     __tablename__ = "user_revisions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True) # For now, can be a simple string/email
-    note_id = Column(Integer, ForeignKey("atomic_notes.id"))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    note_id = Column(String, ForeignKey("atomic_notes.id"))
 
     # FSRS Memory Fields (The AI Brain for scheduling)
     stability = Column(Float, default=0.0)
@@ -36,7 +37,7 @@ class UserRevision(Base):
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     email = Column(String, unique=True, index=True)
-    # NEW: Store the discovered chat_id here
+    hashed_password = Column(String)
     telegram_chat_id = Column(String, nullable=True)

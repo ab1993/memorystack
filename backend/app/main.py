@@ -1,43 +1,61 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
-from app import models, schemas, database, sprint_engine
-from .ai_agent import ContentAgent
-from fsrs import FSRS, Card, Rating
-from datetime import datetime, timezone
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware # 1. Import Middleware
-from sqlalchemy.orm import Session
-from dotenv import load_dotenv
+# backend/app/main.py
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from . import auth
 import os
-load_dotenv() # This must be called BEFORE you initialize the NotificationManager
-from .notifications.manager import NotificationManager
-from sqlalchemy.orm import Session
-from . import models, database, fsrs # Ensure these are imported
-# 👇 IMPORT OUR NEW SCHEDULER
-from .scheduler import start_scheduler
+import json
+import logging
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-# 👇 DEFINE WHAT HAPPENS ON STARTUP
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from dotenv import load_dotenv
+
+# Load env variables before other local imports
+load_dotenv()
+
+from app import models, schemas, database, sprint_engine
+from .ai_agent import ContentAgent
+from .notifications.manager import NotificationManager
+from .notifications import discovery
+from .scheduler import start_scheduler
+from fsrs import FSRS, Card, Rating
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [MemoryStack] - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+
+# You can now use 'logger.info("message")' anywhere in your code!
+
+# 1. Initialize our Notification Manager early so all endpoints can use it
+manager = NotificationManager()
+
+# 2. Define what happens on Startup (Heartbeat)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # This runs when the server starts
     start_scheduler()
     yield
-    # Anything here runs when the server shuts down
 
-app = FastAPI(title="MemoryStack API",lifespan=lifespan)
-from .notifications import discovery
+class UserCreate(BaseModel):
+    email: str
+    password: str
 
+# 3. Initialize FastAPI
+app = FastAPI(title="MemoryStack API", lifespan=lifespan)
+
+# Include Routers
 app.include_router(discovery.router)
 
-# 2. Define the "Trusted" origins
+# 4. CORS Middleware
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-
-# 3. Add the middleware to the app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -49,124 +67,138 @@ app.add_middleware(
 # Helper to get DB
 get_db = database.get_db
 
+# ==========================================
+# ENDPOINTS
+# ==========================================
+
 @app.get("/")
 def read_root():
-    return {"message": "MemoryStack API is live!"}
+    return {"message": "MemoryStack API Server is live!"}
 
-@app.get("/topics", response_model=List[schemas.TopicBase])
-def get_topics(db: Session = Depends(get_db)):
-    """Fetch all available DS & System Design topics."""
-    return db.query(models.AtomicNote).all()
+@app.get("/topics", response_model=list[schemas.TopicBase])
+def get_topics(
+        db: Session = Depends(get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Fetch ONLY the topics that belong to the logged-in user."""
+
+    # We join the AtomicNote table with the UserRevision table
+    # to filter out only the notes this specific user is tracking!
+    user_notes = db.query(models.AtomicNote).join(
+        models.UserRevision,
+        models.AtomicNote.id == models.UserRevision.note_id
+    ).filter(
+        models.UserRevision.user_id == current_user.id
+    ).all()
+
+    return user_notes
 
 @app.post("/generate-sprint", response_model=schemas.SprintResponse)
-def create_sprint(request: schemas.SprintRequest):
+def create_sprint(request: schemas.SprintRequest, current_user: models.User = Depends(auth.get_current_user)):
     """Generate a custom revision plan based on the deadline."""
     plan = sprint_engine.SprintEngine.generate_plan(
         request.interview_date,
         request.selected_topics
     )
-
     if "error" in plan:
         raise HTTPException(status_code=400, detail=plan["error"])
-
     return plan
 
-
 @app.post("/topics/generate/{topic_name}")
-def generate_new_topic(topic_name: str, db: Session = Depends(get_db)):
-    """Agentically generates and saves a new topic note using GPT-4o."""
+async def generate_topic(topic_name: str, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(auth.get_current_user)):
+    """Agentically generates content, saves to BOTH tables, and pushes to Telegram."""
 
-    # 1. Check if it already exists
-    existing = db.query(models.AtomicNote).filter(models.AtomicNote.topic == topic_name).first()
-    if existing:
-        return {"message": "Topic already exists", "data": existing}
+    logger.info(f"🤖 Generating content for: {topic_name}")
 
-    # 2. Use Agent to generate content
-    try:
-        ai_data = ContentAgent.generate_note(topic_name)
+    # 2. Check if topic already exists in AtomicNotes
+    note = db.query(models.AtomicNote).filter(models.AtomicNote.topic == topic_name).first()
 
-        questions = ai_data.get('layer_3_questions', [])
-        # Force conversion to list if AI returned a string
-        if isinstance(questions, str):
-            try:
-                questions = json.loads(questions)
-            except:
-                questions = [questions]
+    if not note:
+        # Generate with AI Agent
+        try:
+            ai_data = ContentAgent.generate_note(topic_name)
 
-        # 3. Save to DB
-        new_note = models.AtomicNote(
-            topic=ai_data['topic'],
-            category=ai_data['category'],
-            layer_1_gist=ai_data['layer_1_gist'],
-            layer_2_pattern=ai_data['layer_2_pattern'],
-            layer_3_questions=ai_data['layer_3_questions']
+            # Ensure questions are formatted as a string/JSON for the DB
+            questions = ai_data.get('layer_3_questions', [])
+            if isinstance(questions, str):
+                try:
+                    questions = json.loads(questions)
+                except:
+                    questions = [questions]
+
+            # Save to AtomicNote Table
+            note = models.AtomicNote(
+                topic=ai_data.get('topic', topic_name),
+                category=ai_data.get('category', 'System Design'),
+                layer_1_gist=ai_data['layer_1_gist'],
+                layer_2_pattern=ai_data['layer_2_pattern'],
+                layer_3_questions=questions
+            )
+            db.add(note)
+            db.commit()
+            db.refresh(note)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI Generation failed: {str(e)}")
+
+    # 3. Save to UserRevision Table (The FSRS tracking)
+    revision = db.query(models.UserRevision).filter(
+        models.UserRevision.user_id == current_user.id,
+        models.UserRevision.note_id == note.id
+    ).first()
+
+    now = datetime.utcnow()
+    if not revision:
+        revision = models.UserRevision(
+            user_id=current_user.id,
+            note_id=note.id,
+            next_review=now # Due immediately for the first push!
         )
-        db.add(new_note)
+        db.add(revision)
         db.commit()
-        db.refresh(new_note)
-
-        return new_note
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/topics/generate")
-async def generate_topic(topic_name: str, db: Session = Depends(database.get_db)):
-    # 1. Look up our linked user (Hardcoded to 1 for Beta)
-    user = db.query(models.User).filter(models.User.id == 1).first()
-    if not user or not user.telegram_chat_id:
-        raise HTTPException(status_code=400, detail="Telegram not linked!")
-
-    print(f"🤖 Generating content for: {topic_name}")
-
-    # 2. MOCK AI GENERATION (Replace this with your actual LLM call later)
-    # This ensures the pipe works even if your OpenAI API isn't ready
-    ai_note = {
-        "gist": f"{topic_name} is a vital pattern in system design used for scaling.",
-        "pattern": "Implementation involves a distributed hash table and nodes on a circular ring.",
-        "challenges": ["How do you handle node hotspots?", "What happens during cascading failures?"]
-    }
-
-    # 3. Save to Database
-    new_note = models.AtomicNote(
-        user_id=1,
-        topic=topic_name,
-        layer_1_gist=ai_note["gist"],
-        layer_2_pattern=ai_note["pattern"],
-        layer_3_questions=str(ai_note["challenges"]), # Store as string/JSON
-        next_revision=datetime.utcnow(),
-        stability=0.1
-    )
-    db.add(new_note)
-    db.commit()
-    db.refresh(new_note)
+    else:
+        # If they generate it again, force a review now
+        revision.next_review = now
+        db.commit()
 
     # 4. THE PUSH: Send to your phone immediately
-    print(f"📤 Pushing {topic_name} to Telegram ID: {user.telegram_chat_id}")
-    await manager.broadcast_revision(
-        user.telegram_chat_id,
-        topic_name,
-        new_note # This passes the object to your Telegram strategy
-    )
+    if current_user.telegram_chat_id:
+        logger.info(f"📤 Pushing {topic_name} to Telegram ID: {current_user.telegram_chat_id}")
+        await manager.broadcast_revision(current_user.telegram_chat_id, topic_name, note)
+    else:
+        logger.info(f"⚠️ Topic generated, but User {current_user.id} has no telegram_chat_id linked.")
 
-    return {"status": "Success", "topic": topic_name}
-
+    return {"status": "Success", "topic": topic_name, "note_id": note.id}
 
 @app.post("/review/{note_id}")
-def review_topic(note_id: int, rating: int, db: Session = Depends(database.get_db)):
-    """
-    Update the user's memory state for a topic.
-    rating: 1 (Again), 2 (Hard), 3 (Good), 4 (Easy)
-    """
+def review_topic(note_id: str, rating: int, db: Session = Depends(get_db),
+                 current_user: models.User = Depends(auth.get_current_user)):
+    """Update the user's memory state for a topic."""
+    from datetime import timedelta
 
     fsrs_engine = FSRS()
-    revision = db.query(models.UserRevision).filter(models.UserRevision.note_id == note_id).first()
+    # 1. Look for existing progress
+    revision = db.query(models.UserRevision).filter(
+        models.UserRevision.note_id == note_id,
+        models.UserRevision.user_id == current_user.id
+    ).first()
 
+    now = datetime.now(timezone.utc)
+
+    # 2. IF FIRST TIME REVIEWING: Create a blank card instead of throwing 404!
     if not revision:
-        card = Card()
-        revision = models.UserRevision(user_id="default_user", note_id=note_id)
+        logger.info(f"🌱 First time reviewing Note {note_id}. Creating tracker...")
+        revision = models.UserRevision(
+            user_id=current_user.id,
+            note_id=note_id,
+            next_review=now.replace(tzinfo=None)
+        )
+        db.add(revision)
+        db.commit()
+        db.refresh(revision)
+        card = Card() # Start with a brand new FSRS memory card
     else:
-        # Load existing card state
+        # Load existing memory card state
         card = Card()
         card.stability = revision.stability
         card.difficulty = revision.difficulty
@@ -176,21 +208,13 @@ def review_topic(note_id: int, rating: int, db: Session = Depends(database.get_d
         card.state = revision.state
         card.last_review = revision.last_review.replace(tzinfo=timezone.utc)
 
-    # 1. Map user rating to FSRS Rating
+    # 3. Process the Rating
     fsrs_rating = {1: Rating.Again, 2: Rating.Hard, 3: Rating.Good, 4: Rating.Easy}.get(rating, Rating.Good)
 
-    now = datetime.now(timezone.utc)
-
-    # 2. FIX: In version 3.1.0, we use .repeat()
-    # This returns a dictionary of potential 'SchedulingCards'
     scheduling_cards = fsrs_engine.repeat(card, now)
+    updated_card = scheduling_cards[fsrs_rating].card
 
-    # 3. Extract the specific 'card' and 'review_log' for the chosen rating
-    chosen_scheduling_card = scheduling_cards[fsrs_rating]
-    updated_card = chosen_scheduling_card.card
-    # chosen_scheduling_card.review_log can be used if you want to track history later
-
-    # 4. Save updated card back to DB
+    # 4. Save updated memory state back to DB
     revision.stability = updated_card.stability
     revision.difficulty = updated_card.difficulty
     revision.elapsed_days = updated_card.elapsed_days
@@ -199,53 +223,59 @@ def review_topic(note_id: int, rating: int, db: Session = Depends(database.get_d
     revision.state = updated_card.state
     revision.last_review = now
 
-    if not db.query(models.UserRevision).filter(models.UserRevision.note_id == note_id).first():
-        db.add(revision)
+    # Calculate exactly when this needs to be pushed to Telegram next
+    revision.next_review = now.replace(tzinfo=None) + timedelta(days=updated_card.scheduled_days)
 
     db.commit()
-    return {"next_review_days": updated_card.scheduled_days}
+    return {"next_review_days": updated_card.scheduled_days, "status": "Success"}
 
-# Initialize the manager
-notification_manager = NotificationManager()
+@app.get("/user/status")
+def get_user_status(current_user: models.User = Depends(auth.get_current_user)):
+    return {
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "telegram_chat_id": current_user.telegram_chat_id
+    }
 
-@app.post("/test-notification")
-async def test_notification():
-    # This pulls your ID from the .env file we created
-    test_chat_id = os.getenv("TEST_TELEGRAM_CHAT_ID")
 
-    if not test_chat_id:
-        raise HTTPException(status_code=400, detail="TEST_TELEGRAM_CHAT_ID not found in .env")
+# ==========================================
+# AUTHENTICATION ENDPOINTS
+# ==========================================
 
-    # Dummy data to simulate a real note
-    sample_note = type('obj', (object,), {
-        'layer_1_gist': "A Trie (Prefix Tree) is a tree-like data structure used for efficient retrieval of keys in a dataset of strings.",
-        'layer_2_pattern': "Use it when dealing with prefix matching, autocomplete, or spell checkers. Logic: Each node represents a character.",
-        'layer_3_questions': [
-            "Implement Trie (Prefix Tree)",
-            "Word Search II",
-            "Design Add and Search Words Data Structure"
-        ]
-    })
+@app.post("/signup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    """Creates a new user with a hashed password."""
+    # 1. Check if email already exists
+    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    try:
-        await notification_manager.broadcast_revision(
-            recipient_id=test_chat_id,
-            topic="Trie (Test)",
-            note_data=sample_note
-        )
-        return {"status": "success", "message": "Check your Telegram!"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+    # 2. Hash the password and save the user
+    hashed_pw = auth.get_password_hash(user.password)
+    new_user = models.User(email=user.email, hashed_password=hashed_pw)
 
-@app.get("/user/{user_id}/status")
-def get_user_status(user_id: int, db: Session = Depends(database.get_db)):
-    # Look up the user in the database
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-    if not user:
-        return {"telegram_chat_id": None, "error": "User not found"}
+    return {"message": "User created successfully!", "user_id": new_user.id}
+
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Checks credentials and returns a JWT token."""
+    # Note: OAuth2 uses "username" by default, so we pass the email into the username field
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+
+    # 1. Verify user exists and password is correct
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+    # 2. Generate the secure token
+    access_token = auth.create_access_token(data={"sub": str(user.id)})
 
     return {
-        "user_id": user.id,
-        "telegram_chat_id": user.telegram_chat_id # This will be null until they hit Start
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user.id
     }

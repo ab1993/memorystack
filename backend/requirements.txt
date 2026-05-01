@@ -6,3 +6,6 @@ openai
 fsrs==3.1.0
 python-dotenv
 apscheduler
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart

@@ -25,7 +25,7 @@ export default function SprintPage() {
     }, []);
 
     // Get the flat list of topics for this sprint
-    const sprintTopics = plan ? Object.values(plan.schedule).flat() : [];
+    const sprintTopics = plan?.sprint_plan || [];
     const currentItem = sprintTopics[currentIndex];
     const topicData = allTopics.find(t => t.topic === currentItem?.topic);
 

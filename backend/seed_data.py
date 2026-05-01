@@ -1,13 +1,23 @@
+# seeddata.py
 from app.database import SessionLocal
-from app.models import AtomicNote
-import json
+from app.models import AtomicNote, User
 
 def seed():
     db = SessionLocal()
 
-    # Check if we already have data
+    # 1. SEED THE USER FIRST
+    test_user = db.query(User).filter(User.id == 1).first()
+    if not test_user:
+        print("Creating User #1...")
+        # Note: Depending on your Postgres setup, you might not need to manually set id=1
+        # if it's auto-incrementing, but we will force it for our beta test.
+        new_user = User(id=1, email="beta@memorystack.com")
+        db.add(new_user)
+        db.commit()
+
+    # 2. SEED THE NOTES
     if db.query(AtomicNote).first():
-        print("Data already exists. Skipping seed.")
+        print("Notes already exist. Skipping note seed.")
         return
 
     notes = [
@@ -36,7 +46,7 @@ def seed():
 
     db.add_all(notes)
     db.commit()
-    print("Seeded 3 core topics into MemoryStack!")
+    print("✅ Seeded User #1 and 3 core topics into Postgres!")
 
 if __name__ == "__main__":
     seed()
