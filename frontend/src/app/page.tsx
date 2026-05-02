@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Topic, SprintPlan } from '@/types';
 import { useRouter } from 'next/navigation';
-import { Send, CheckCircle, ExternalLink, BrainCircuit, Loader2, LogOut, User } from "lucide-react";
+import { Send, CheckCircle, ExternalLink, BrainCircuit, Loader2, LogOut, User, X } from "lucide-react"; // Added X icon
+import { QRCodeCanvas } from 'qrcode.react'; // 1. Added QR Import
 
 export default function Dashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -19,8 +20,13 @@ export default function Dashboard() {
     const [dbUserId, setDbUserId] = useState<string | null>(null);
     const [isLinked, setIsLinked] = useState(false);
     const [isPolling, setIsPolling] = useState(false);
+    const [showSyncModal, setShowSyncModal] = useState(false); // 2. Added Modal State
 
     const TELEGRAM_BOT_NAME = "MemoryStackBot";
+
+    // 3. Added Encoding Logic (Safe for Telegram URL parameters)
+    const encodedId = dbUserId ? btoa(dbUserId).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '') : "";
+    const telegramUrl = `https://t.me/${TELEGRAM_BOT_NAME}?start=${encodedId}`;
 
     const loadTopics = async () => {
         try {
@@ -32,7 +38,6 @@ export default function Dashboard() {
         }
     };
 
-    // 👇 FIXED: Securely fetch the user's email, ID, and Telegram status via your API
     const loadUserStatus = async () => {
         try {
             const data = await api.getUserStatus();
@@ -42,6 +47,7 @@ export default function Dashboard() {
                 if (data.telegram_chat_id) {
                     setIsLinked(true);
                     setIsPolling(false);
+                    setShowSyncModal(false); // Close modal automatically once linked
                 }
             }
         } catch (error) {
@@ -55,11 +61,10 @@ export default function Dashboard() {
             router.push("/login");
         } else {
             loadTopics();
-            loadUserStatus(); // Load the email and status immediately
+            loadUserStatus();
         }
     }, [router]);
 
-    // 👇 FIXED: The polling now securely checks your dynamic token, not a hardcoded URL
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (isPolling && !isLinked) {
@@ -107,11 +112,11 @@ export default function Dashboard() {
         }
     };
 
-    // 👇 FIXED: Uses the dynamic dbUserId we fetched from the secure endpoint
+    // 4. Updated handleConnect to trigger Modal
     const handleConnect = () => {
-        setIsPolling(true);
         if (dbUserId) {
-            window.open(`https://t.me/${TELEGRAM_BOT_NAME}?start=${dbUserId}`, '_blank');
+            setIsPolling(true);
+            setShowSyncModal(true);
         } else {
             alert("Waiting for user ID to load. Try again in a second.");
         }
@@ -132,7 +137,6 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    {/* --- NEW EMAIL BADGE --- */}
                     {userEmail && (
                         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-full text-xs text-slate-300 font-medium">
                             <User size={12} className="text-slate-400" />
@@ -236,6 +240,44 @@ export default function Dashboard() {
                     </div>
                 </section>
             </div>
+
+            {/* 5. Added Sync Modal JSX */}
+            {showSyncModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+                    <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl animate-in fade-in zoom-in duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold">Sync Phone</h2>
+                            <button onClick={() => setShowSyncModal(false)} className="text-slate-500 hover:text-white transition">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+                            Scan the QR code with your phone camera to instantly link the bot.
+                        </p>
+
+                        <div className="bg-white p-4 rounded-2xl inline-block mb-8 shadow-xl shadow-blue-500/10">
+                            <QRCodeCanvas value={telegramUrl} size={180} level="H" />
+                        </div>
+
+                        <div className="space-y-3">
+                            <a
+                                href={telegramUrl}
+                                target="_blank"
+                                className="block w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20"
+                            >
+                                Open Telegram Desktop
+                            </a>
+                            <button
+                                onClick={() => setShowSyncModal(false)}
+                                className="text-slate-500 text-xs hover:text-slate-300 transition"
+                            >
+                                Not now, I'll do it later
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <footer className="mt-16 pt-6 border-t border-white/10 text-center text-sm text-slate-500 w-full max-w-5xl mx-auto">
                 &copy; {new Date().getFullYear()} MemoryStack. All rights reserved.

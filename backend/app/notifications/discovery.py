@@ -1,13 +1,29 @@
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 import logging
+import base64
 from .. import models, database, notifications
 
-# --- NEW: Logging Configuration ---
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 manager = notifications.manager.NotificationManager()
+
+# --- FIXED: Robust Base64 Decoding ---
+def decode_user_id(encoded_str: str):
+    try:
+        # 1. Add back the correct amount of padding
+        # Base64 strings must have a length divisible by 4
+        missing_padding = len(encoded_str) % 4
+        if missing_padding:
+            encoded_str += '=' * (4 - missing_padding)
+
+        # 2. Decode using urlsafe (which handles the '-' and '_' we used in JS)
+        decoded_bytes = base64.urlsafe_b64decode(encoded_str)
+        return decoded_bytes.decode('utf-8')
+    except Exception as e:
+        logger.error(f"🔥 Decoding Error: {str(e)}")
+        return None
 
 @router.post("/telegram-webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(database.get_db)):
@@ -18,17 +34,23 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
         chat_id = str(data["message"]["chat"]["id"])
         text = data["message"].get("text", "")
 
-        logger.info(f"📩 Incoming Message: '{text}' | Chat ID: {chat_id}")
+        logger.debug(f"📩 Incoming Message: '{text}' | Chat ID: {chat_id}")
 
         if text.startswith("/start"):
             parts = text.split(" ")
 
             if len(parts) > 1:
-                internal_user_id = parts[1]
-                logger.info(f"🔍 Attempting to link UUID: {internal_user_id}")
+                encoded_id = parts[1]
+
+                # 🔓 Decode the masked ID
+                internal_user_id = decode_user_id(encoded_id)
+                logger.debug(f"🔍 Attempting to link UUID: {internal_user_id}")
+
+                if not internal_user_id:
+                    logger.error("❌ Failed to decode Telegram start token")
+                    return {"ok": True}
 
                 try:
-                    # ✅ FIXED: Removed int() cast. UUIDs are strings!
                     user = db.query(models.User).filter(models.User.id == str(internal_user_id)).first()
 
                     if user:
@@ -36,15 +58,14 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                         db.commit()
                         logger.info(f"✅ SUCCESS: Database updated for User {user.email}")
 
-                        # Send a "Linked" confirmation immediately!
-                        logger.info("📤 Sending Telegram confirmation...")
+                        # Send confirmation to the user's phone
                         await manager.broadcast_revision(
                             chat_id,
                             "System Sync",
                             type('obj', (object,), {
-                                'layer_1_gist': "Your account is now linked to MemoryStack!",
-                                'layer_2_pattern': "You will receive revision notes here based on your sprint schedule.",
-                                'layer_3_questions': ["Try generating a sprint on the web dashboard!"]
+                                'layer_1_gist': "Success! Your account is linked.",
+                                'layer_2_pattern': "You'll now receive revision notes here.",
+                                'layer_3_questions': ["Try generating a topic on the web!"]
                             })
                         )
                     else:
@@ -52,6 +73,6 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 except Exception as e:
                     logger.error(f"🔥 Database Error during linking: {e}")
             else:
-                logger.warning("⚠️ /start received but no ID parameter found.")
+                logger.warning("⚠️ /start received but no ID found.")
 
     return {"ok": True}

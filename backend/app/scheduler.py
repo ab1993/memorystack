@@ -46,7 +46,7 @@ async def check_and_send_revisions():
                 await manager.broadcast_revision(user.telegram_chat_id, note.topic, note)
 
                 # Push the date forward by 1 hour for testing
-                revision.next_review = now + timedelta(hours=1)
+                revision.next_review = now + timedelta(hours=60)
                 db.commit()
             else:
                 logger.info("Not sent telegram_chat_id is missing, please sync the telegram from memorystack dashboard")
