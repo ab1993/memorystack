@@ -7,6 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue)
 ![OpenAI](https://img.shields.io/badge/GPT--4o-Agentic-orange)
 ![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
@@ -117,21 +118,22 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 4. Database Initialization
 Make sure your PostgreSQL server is running, then start the backend. SQLAlchemy will automatically create the tables:
 
-Bash
-cd backend
+npm run dev
+```
+
+### 3. Telegram Webhook Setup
+```bash
+# 1. Start your local server
 uvicorn app.main:app --reload
-🤖 Telegram Bot Discovery
-To enable the "Push" notifications:
 
-Open your backend terminal and run ngrok http 8000.
+# 2. Expose with ngrok
+ngrok http 8000
 
-Copy the https URL provided by ngrok.
-
-Set the webhook by visiting this URL in your browser:
-https://api.telegram.org/bot<TOKEN>/setWebhook?url=<NGROK_URL>/telegram-webhook
-
-Click Connect Telegram on the MemoryStack Dashboard.
+# 3. Register the webhook with Telegram
+# Visit: [https://api.telegram.org/bot](https://api.telegram.org/bot)<TOKEN>/setWebhook?url=<NGROK_URL>/telegram-webhook
+# Click Connect Telegram on the MemoryStack Dashboard.
 ```
 
 ### 📝 License
-This project is for personal interview preparation and educational use.
+Copyright (c) 2026 Abhishek Sharma.
+This project is licensed under the MIT License - see the LICENSE file for details.
