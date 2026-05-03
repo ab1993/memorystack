@@ -11,8 +11,8 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Topic, SprintPlan } from '@/types';
 import { useRouter } from 'next/navigation';
-import { Send, CheckCircle, ExternalLink, BrainCircuit, Loader2, LogOut, User, X } from "lucide-react"; // Added X icon
-import { QRCodeCanvas } from 'qrcode.react'; // 1. Added QR Import
+import { Send, CheckCircle, ExternalLink, BrainCircuit, Loader2, LogOut, User, X } from "lucide-react";
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function Dashboard() {
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -27,11 +27,11 @@ export default function Dashboard() {
     const [dbUserId, setDbUserId] = useState<string | null>(null);
     const [isLinked, setIsLinked] = useState(false);
     const [isPolling, setIsPolling] = useState(false);
-    const [showSyncModal, setShowSyncModal] = useState(false); // 2. Added Modal State
+    const [showSyncModal, setShowSyncModal] = useState(false);
 
     const TELEGRAM_BOT_NAME = "MemoryStackBot";
 
-    // 3. Added Encoding Logic (Safe for Telegram URL parameters)
+    // 3. Encoding Logic (Safe for Telegram URL parameters)
     const encodedId = dbUserId ? btoa(dbUserId).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '') : "";
     const telegramUrl = `https://t.me/${TELEGRAM_BOT_NAME}?start=${encodedId}`;
 
@@ -248,7 +248,7 @@ export default function Dashboard() {
                 </section>
             </div>
 
-            {/* 5. Added Sync Modal JSX */}
+            {/* 5. Sync Modal JSX */}
             {showSyncModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
                     <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl animate-in fade-in zoom-in duration-200">

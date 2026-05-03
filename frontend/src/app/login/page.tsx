@@ -8,7 +8,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api"; // Adjust path if your api.ts is elsewhere
+import { api } from "@/lib/api";
 import { BrainCircuit } from "lucide-react";
 
 export default function AuthPage() {
@@ -45,7 +45,6 @@ export default function AuthPage() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
 
-            {/* --- NEW LOGO HEADER --- */}
             <div className="flex items-center gap-3 mb-8">
                 <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-600/20">
                     <BrainCircuit className="text-white" size={32} />
@@ -105,7 +104,6 @@ export default function AuthPage() {
                 </p>
             </div>
 
-            {/* --- NEW COPYRIGHT FOOTER --- */}
             <footer className="mt-12 text-sm text-gray-400">
                 &copy; {new Date().getFullYear()} MemoryStack. All rights reserved.
             </footer>

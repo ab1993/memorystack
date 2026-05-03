@@ -42,12 +42,12 @@ async def check_and_send_revisions():
             logger.info("📭 No revisions due right now.")
             return
 
-        logger.info(f"📦 Found {len(due_revisions)} topics due for revision!")
+        logger.info(f"Found {len(due_revisions)} topics due for revision!")
 
         # 2. Loop through and send
         for revision, note, user in due_revisions:
             if user.telegram_chat_id:
-                logger.info(f"📤 Auto-pushing '{note.topic}' to User {user.id} (Telegram: {user.telegram_chat_id})")
+                logger.info(f"Auto-pushing '{note.topic}' to User {user.id} (Telegram: {user.telegram_chat_id})")
 
                 # Send to telegram
                 await manager.broadcast_revision(user.telegram_chat_id, note.topic, note)

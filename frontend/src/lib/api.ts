@@ -18,7 +18,7 @@ const getAuthHeader = () => {
 export const api = {
 
     // ==========================================
-    // NEW: AUTHENTICATION
+    // AUTHENTICATION
     // ==========================================
     signup: async (email: string, password: string) => {
         const response = await fetch(`${BASE_URL}/signup`, {
@@ -31,9 +31,8 @@ export const api = {
     },
 
     login: async (email: string, password: string) => {
-        // FastAPI OAuth2 strictly requires Form Data (URL Encoded), NOT JSON!
         const formData = new URLSearchParams();
-        formData.append('username', email); // It expects 'username', so we pass the email here
+        formData.append('username', email);
         formData.append('password', password);
 
         const response = await fetch(`${BASE_URL}/login`, {
@@ -54,10 +53,9 @@ export const api = {
             }
         });
 
-        // If the token is missing or expired, we can handle it
+        // If the token is missing or expired
         if (response.status === 401) {
             console.error("Unauthorized: Please log in again");
-            // Optional: You can redirect to /login here if you want
             throw new Error("Unauthorized");
         }
 

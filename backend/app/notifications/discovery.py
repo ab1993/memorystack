@@ -34,14 +34,14 @@ def decode_user_id(encoded_str: str):
 
 @router.post("/telegram-webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(database.get_db)):
-    logger.info("🚀 Webhook received!")
+    logger.info("Webhook received!")
     data = await request.json()
 
     if "message" in data:
         chat_id = str(data["message"]["chat"]["id"])
         text = data["message"].get("text", "")
 
-        logger.debug(f"📩 Incoming Message: '{text}' | Chat ID: {chat_id}")
+        logger.debug(f"Incoming Message: '{text}' | Chat ID: {chat_id}")
 
         if text.startswith("/start"):
             parts = text.split(" ")
@@ -51,10 +51,10 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
 
                 # 🔓 Decode the masked ID
                 internal_user_id = decode_user_id(encoded_id)
-                logger.debug(f"🔍 Attempting to link UUID: {internal_user_id}")
+                logger.debug(f"Attempting to link UUID: {internal_user_id}")
 
                 if not internal_user_id:
-                    logger.error("❌ Failed to decode Telegram start token")
+                    logger.error("Failed to decode Telegram start token")
                     return {"ok": True}
 
                 try:
@@ -63,7 +63,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                     if user:
                         user.telegram_chat_id = chat_id
                         db.commit()
-                        logger.info(f"✅ SUCCESS: Database updated for User {user.email}")
+                        logger.info(f"SUCCESS: Database updated for User {user.email}")
 
                         # Send confirmation to the user's phone
                         await manager.broadcast_revision(
@@ -76,10 +76,10 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                             })
                         )
                     else:
-                        logger.error(f"❌ ERROR: User UUID {internal_user_id} not found in DB.")
+                        logger.error(f"ERROR: User UUID {internal_user_id} not found in DB.")
                 except Exception as e:
-                    logger.error(f"🔥 Database Error during linking: {e}")
+                    logger.error(f"Database Error during linking: {e}")
             else:
-                logger.warning("⚠️ /start received but no ID found.")
+                logger.warning("/start received but no ID found.")
 
     return {"ok": True}

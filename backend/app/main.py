@@ -59,10 +59,11 @@ app = FastAPI(title="MemoryStack API", lifespan=lifespan)
 app.include_router(discovery.router)
 
 # 4. CORS Middleware
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+
+# Convert the string "url1,url2" into a Python list ["url1", "url2"]
+origins = [origin.strip() for origin in raw_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -116,7 +117,7 @@ async def generate_topic(topic_name: str, db: Session = Depends(get_db),
                          current_user: models.User = Depends(auth.get_current_user)):
     """Agentically generates content, saves to BOTH tables, and pushes to Telegram."""
 
-    logger.info(f"🤖 Generating content for: {topic_name}")
+    logger.info(f"Generating content for: {topic_name}")
 
     # 2. Check if topic already exists in AtomicNotes
     note = db.query(models.AtomicNote).filter(models.AtomicNote.topic == topic_name).first()
@@ -170,10 +171,10 @@ async def generate_topic(topic_name: str, db: Session = Depends(get_db),
 
     # 4. THE PUSH: Send to your phone immediately
     if current_user.telegram_chat_id:
-        logger.info(f"📤 Pushing {topic_name} to Telegram ID: {current_user.telegram_chat_id}")
+        logger.info(f"Pushing {topic_name} to Telegram ID: {current_user.telegram_chat_id}")
         await manager.broadcast_revision(current_user.telegram_chat_id, topic_name, note)
     else:
-        logger.info(f"⚠️ Topic generated, but User {current_user.id} has no telegram_chat_id linked.")
+        logger.info(f"Topic generated, but User {current_user.id} has no telegram_chat_id linked.")
 
     return {"status": "Success", "topic": topic_name, "note_id": note.id}
 
@@ -194,7 +195,7 @@ def review_topic(note_id: str, rating: int, db: Session = Depends(get_db),
 
     # 2. IF FIRST TIME REVIEWING: Create a blank card instead of throwing 404!
     if not revision:
-        logger.info(f"🌱 First time reviewing Note {note_id}. Creating tracker...")
+        logger.info(f"First time reviewing Note {note_id}. Creating tracker...")
         revision = models.UserRevision(
             user_id=current_user.id,
             note_id=note_id,

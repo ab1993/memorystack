@@ -45,9 +45,9 @@ class TelegramProvider(NotificationProvider):
             )
 
             # DEBUG LOGS: Check your terminal after running the test!
-            logger.debug(f"📡 Telegram Request to ID: {recipient_id}")
-            logger.info(f"📊 Status Code: {response.status_code}")
+            logger.debug(f"Telegram Request to ID: {recipient_id}")
+            logger.info(f"Status Code: {response.status_code}")
             if response.status_code != 200:
-                logger.error(f"❌ Telegram Error Details: {response.text}")
+                logger.error(f"Telegram Error Details: {response.text}")
 
             return response.status_code == 200
