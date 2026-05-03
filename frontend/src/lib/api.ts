@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Abhishek Sharma. All rights reserved.
+ * This code is part of the MemoryStack project.
+ * Unauthorized copying or distribution of this file via any medium is strictly prohibited.
+ * Proprietary and confidential.
+ */
+
 import { Topic, SprintPlan } from '../types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
