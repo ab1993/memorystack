@@ -134,6 +134,23 @@ ngrok http 8000
 # Click Connect Telegram on the MemoryStack Dashboard.
 ```
 
+### Working Demo
+![Demo](images/momory_stack_demo_login_signup.png)
+![Demo](images/memory_stack_demo_dashboard.png)
+![Demo](images/memory_stack_demo_ai_thinking.png)
+![Demo](images/memory_stack_demo_added_topic.png)
+![Demo](images/memory_stack_demo_topic_selection_with_interview_date.png)
+![Demo](images/memory_stack_demo_layer1.png)
+![Demo](images/memory_stack_demo_layer2.png)
+![Demo](images/memory_stack_demo_layer3.png)
+![Demo](images/memory_stack_demo_rating_selection.png)
+![Demo](images/memory_stack_demo_bot_linking.png)
+![Demo](images/memory_stack_demo_bot_linking_QR_code.png)
+![Demo](images/memory_stack_demo_bot_syncing.jpeg)
+![Demo](images/memory_stack_demo_telegram_bot_notification.jpeg)
+
+    
+
 ### 📝 License
 Copyright (c) 2026 Abhishek Sharma.
 This project is licensed under the MIT License - see the LICENSE file for details.
