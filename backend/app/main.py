@@ -14,6 +14,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from .database import engine
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +52,8 @@ async def lifespan(app: FastAPI):
 class UserCreate(BaseModel):
     email: str
     password: str
+
+models.Base.metadata.create_all(bind=engine)
 
 # 3. Initialize FastAPI
 app = FastAPI(title="MemoryStack API", lifespan=lifespan)
