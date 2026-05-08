@@ -21,10 +21,11 @@ export interface SprintDay {
 }
 
 export interface SprintPlan {
-    metadata: {
+    metadata?: {
         days_allocated: number;
         total_topics: number;
         intensity: string;
     };
-    schedule: Record<string, SprintDay[]>;
+    schedule?: Record<string, SprintDay[]>;
+    sprint_plan?: { topic: string; [key: string]: any }[];
 }

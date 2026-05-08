@@ -66,6 +66,6 @@ async def check_and_send_revisions():
 def start_scheduler():
     # For testing, we run this every 1 minute.
     # In production, we will change this to run once a day at 8:00 AM.
-    scheduler.add_job(check_and_send_revisions, 'interval', minutes=1)
+    scheduler.add_job(check_and_send_revisions, 'interval', minutes=5)
     scheduler.start()
     logger.info("⏱️ Background Scheduler started and ticking...")
