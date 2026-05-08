@@ -10,6 +10,7 @@ import httpx
 import os
 from .base import NotificationProvider
 import logging
+from ..security import decrypt_chat_id
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +39,7 @@ class TelegramProvider(NotificationProvider):
             response = await client.post(
                 f"{self.base_url}/sendMessage",
                 json={
-                    "chat_id": recipient_id,
+                    "chat_id": decrypt_chat_id(recipient_id),
                     "text": message,
                     "parse_mode": "Markdown"
                 }
