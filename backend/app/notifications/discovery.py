@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import logging
 import base64
 from .. import models, database, notifications
+from ..security import encrypt_chat_id
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                     user = db.query(models.User).filter(models.User.id == str(internal_user_id)).first()
 
                     if user:
-                        user.telegram_chat_id = chat_id
+                        user.telegram_chat_id = encrypt_chat_id(chat_id)
                         db.commit()
                         logger.info(f"SUCCESS: Database updated for User {user.email}")
 
