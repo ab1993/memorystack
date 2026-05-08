@@ -50,7 +50,7 @@ export const api = {
             method: 'GET',
             headers: {
                 ...getAuthHeader()
-            }
+            } as HeadersInit
         });
 
         // If the token is missing or expired
@@ -69,7 +69,7 @@ export const api = {
             method: 'POST',
             headers: {
                 ...getAuthHeader()
-            }
+            } as HeadersInit
         });
         if (!res.ok) throw new Error("Unauthorized or Failed to generate");
         return res.json();
@@ -80,7 +80,7 @@ export const api = {
             method: 'GET',
             headers: {
                 ...getAuthHeader()
-            }
+            } as HeadersInit
         });
         if (!response.ok) return null;
         return response.json();
@@ -90,7 +90,7 @@ export const api = {
     generateSprint: async (date: string, topics: string[]): Promise<SprintPlan> => {
         const res = await fetch(`${BASE_URL}/generate-sprint`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeader()},
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader()} as HeadersInit,
             body: JSON.stringify({ interview_date: date, selected_topics: topics }),
         });
         if (!res.ok) throw new Error("Failed to generate sprint");
@@ -103,7 +103,7 @@ export const api = {
             method: 'POST',
             headers: {
                 ...getAuthHeader()
-            }
+            } as HeadersInit
         });
         if (!res.ok) throw new Error("Review submission failed");
         return res.json();

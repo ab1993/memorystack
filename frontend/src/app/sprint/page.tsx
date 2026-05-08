@@ -53,17 +53,18 @@ export default function SprintPage() {
         }
     };
 
-    const handleGenerate = async () => {
+    const handleGenerate = async (topic: string) => {
         if (!topic) return;
 
         try {
-            const response = await fetch(`http://localhost:8000/topics/generate?topic_name=${topic}`, {
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const response = await fetch(`${baseUrl}/topics/generate?topic_name=${topic}`, {
                 method: 'POST',
             });
 
             if (response.ok) {
                 console.log("Topic generated and pushed!");
-                setTopic(""); // Clear the input
+                //setTopic(""); // Clear the input
                 // Optionally: Refresh your topic list here
             }
         } catch (error) {
@@ -99,7 +100,7 @@ export default function SprintPage() {
                 </div>
 
                 <button
-                    onClick={handleGenerate}
+                    onClick={() => handleGenerate(topicData.topic)}
                     className="absolute right-2 top-2 p-3 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors"
                 >
                     <Sparkles size={20} />
@@ -146,7 +147,7 @@ export default function SprintPage() {
                                         }
 
                                         // 2. If it's a string that looks like a JSON array, parse it
-                                        if (typeof rawQuestions === 'string' && rawQuestions.startsWith('[')) {
+                                        if (typeof rawQuestions === 'string' && (rawQuestions as string).startsWith('[')) {
                                             try {
                                                 const parsed = JSON.parse(rawQuestions);
                                                 return parsed.map((q: string, i: number) => (
