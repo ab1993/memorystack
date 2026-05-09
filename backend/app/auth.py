@@ -7,7 +7,7 @@
 
 # backend/app/auth.py
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
@@ -69,4 +69,27 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(models.User).filter(models.User.id == str(user_id)).first()
     if user is None:
         raise credentials_exception
+    return user
+
+def verify_active_subscription(user: models.User = Depends(get_current_user)):
+    # 1. Premium Check
+    if user.is_premium:
+        return user
+
+    # 2. Safety check: What if created_at is None? (happens if old DB rows didn't update right)
+    if not user.created_at:
+        return user
+
+    # 3. Calculate Days
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    user_created = user.created_at.replace(tzinfo=None)
+
+    days_active = (now - user_created).days
+
+    # 4. Enforce Trial Limit
+    if days_active > 3:
+        raise HTTPException(
+            status_code=403,
+            detail="TRIAL_EXPIRED"
+        )
     return user
