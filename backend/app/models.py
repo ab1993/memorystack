@@ -5,9 +5,9 @@
 # Proprietary and confidential.
 #
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Float, Boolean
 from .database import Base
-from datetime import datetime
+from datetime import datetime,timezone
 import uuid
 
 class AtomicNote(Base):
@@ -48,3 +48,5 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     telegram_chat_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_premium = Column(Boolean, default=False)

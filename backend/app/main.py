@@ -117,7 +117,7 @@ def create_sprint(request: schemas.SprintRequest, current_user: models.User = De
 
 @app.post("/topics/generate/{topic_name}")
 async def generate_topic(topic_name: str, db: Session = Depends(get_db),
-                         current_user: models.User = Depends(auth.get_current_user)):
+                         current_user: models.User = Depends(auth.verify_active_subscription)):
     """Agentically generates content, saves to BOTH tables, and pushes to Telegram."""
 
     logger.info(f"Generating content for: {topic_name}")
